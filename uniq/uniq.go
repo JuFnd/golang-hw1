@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -40,47 +41,28 @@ func parseFlags() (UniqFlags, error) {
 	return flags, nil
 }
 
-type Scan struct {
-	reader *bufio.Scanner
-	file   *os.File
-}
-
-type Write struct {
-	writer *bufio.Writer
-	file   *os.File
-}
-
-var writer Write
-var scanner Scan
-
-func createScanner(inputFilename *string) error {
-	scanner = Scan{}
-	if *inputFilename != "" {
+func createScanner(inputFilename *string) (*os.File, error) {
+	if *inputFilename == "" {
+		return os.Stdin, nil
+	} else {
 		file, err := openFile(inputFilename)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		scanner.file = file
-		scanner.reader = bufio.NewScanner(scanner.file)
-	} else {
-		scanner.reader = bufio.NewScanner(os.Stdin)
+		return file, nil
 	}
-	return nil
 }
 
-func createWriter(outputFilename *string) error {
-	writer = Write{}
-	if *outputFilename != "" {
+func createWriter(outputFilename *string) (*os.File, error) {
+	if *outputFilename == "" {
+		return os.Stdout, nil
+	} else {
 		file, err := openFile(outputFilename)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		writer.file = file
-		writer.writer = bufio.NewWriter(writer.file)
-	} else {
-		writer.writer = bufio.NewWriter(os.Stdout)
+		return file, nil
 	}
-	return nil
 }
 
 func openFile(filename *string) (*os.File, error) {
@@ -130,34 +112,41 @@ func isRegIgnore(isIgnore bool, line string, prevLine string, numFields int, num
 	}
 }
 
-func isSymCounter(isCounter bool, prevLine string, counter int) {
+func isSymCounter(isCounter bool, prevLine string, counter int, writer io.Writer) {
 	if isCounter {
-		writer.writer.WriteString(fmt.Sprintf("%d %s\n", counter+1, prevLine))
+		writer.Write([]byte(fmt.Sprintf("%d %s\n", counter+1, prevLine)))
 	} else if !isCounter && prevLine != "" {
-		writer.writer.WriteString(fmt.Sprintf("%s\n", prevLine))
+		writer.Write([]byte(fmt.Sprintf("%s\n", prevLine)))
 	}
 }
 
 func parseFile(inputFilename *string, outputFilename *string, flags *UniqFlags) error {
-	err := createScanner(inputFilename)
+	inputFile, err := createScanner(inputFilename)
 	if err != nil {
 		return err
 	}
-	err = createWriter(outputFilename)
+	defer inputFile.Close()
+
+	outputFile, err := createWriter(outputFilename)
 	if err != nil {
 		return err
 	}
+	defer outputFile.Close()
+
+	var scanner io.Reader = inputFile
+	var writer io.Writer = outputFile
 
 	counter := 0
 	prevLine := ""
-	for scanner.reader.Scan() {
-		line := scanner.reader.Text()
+	sc := bufio.NewScanner(scanner)
+	for sc.Scan() {
+		line := sc.Text()
 
 		if isRegIgnore(flags.ignoreCase, line, prevLine, flags.numFields, flags.numChars) {
 			counter++
 		} else {
 			if (flags.unique && counter == 0 || flags.duplicates && counter > 0 || !flags.duplicates && !flags.unique) && prevLine != "" {
-				isSymCounter(flags.count, prevLine, counter)
+				isSymCounter(flags.count, prevLine, counter, writer)
 			}
 
 			counter = 0
@@ -166,10 +155,12 @@ func parseFile(inputFilename *string, outputFilename *string, flags *UniqFlags) 
 	}
 
 	if (flags.unique && counter == 0) || (flags.duplicates && counter > 0) || (!flags.duplicates && !flags.unique) {
-		isSymCounter(flags.count, prevLine, counter)
+		isSymCounter(flags.count, prevLine, counter, writer)
 	}
 
-	writer.writer.Flush()
+	if w, ok := writer.(*bufio.Writer); ok {
+		w.Flush()
+	}
 
 	return nil
 }
@@ -183,9 +174,6 @@ func Uniq() {
 	inputFilename := flag.Arg(0)
 	outputFilename := flag.Arg(1)
 	err = parseFile(&inputFilename, &outputFilename, &flags)
-	writer.writer.Flush()
-	defer scanner.file.Close()
-	defer writer.file.Close()
 	if err != nil {
 		fmt.Println("Error parsing file:", err)
 		return
