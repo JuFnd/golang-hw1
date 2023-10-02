@@ -12,6 +12,20 @@ type Expression struct {
 	value string
 }
 
+var operators = map[string]func(float64, float64) float64{
+	"+": func(a, b float64) float64 { return a + b },
+	"-": func(a, b float64) float64 { return a - b },
+	"*": func(a, b float64) float64 { return a * b },
+	"/": func(a, b float64) float64 { return a / b },
+}
+
+var precedence = map[string]int{
+	"+": 1,
+	"-": 1,
+	"*": 2,
+	"/": 2,
+}
+
 func parseExpression() Expression {
 	expression := Expression{}
 	flag.Parse()
@@ -19,14 +33,8 @@ func parseExpression() Expression {
 	return expression
 }
 
-func evaluateRPN(expression string) (int, error) {
+func evaluateRPN(expression string) (float64, error) {
 	stack := stack.NewStack()
-	operators := map[string]func(int, int) int{
-		"+": func(a, b int) int { return a + b },
-		"-": func(a, b int) int { return a - b },
-		"*": func(a, b int) int { return a * b },
-		"/": func(a, b int) int { return a / b },
-	}
 
 	tokens := strings.Split(expression, " ")
 	for _, token := range tokens {
@@ -36,10 +44,10 @@ func evaluateRPN(expression string) (int, error) {
 			}
 			b, _ := stack.Pop()
 			a, _ := stack.Pop()
-			result := operator(a.(int), b.(int))
+			result := operator(a.(float64), b.(float64))
 			stack.Push(result)
 		} else {
-			num, err := strconv.Atoi(token)
+			num, err := strconv.ParseFloat(token, 64)
 			if err != nil {
 				return 0, fmt.Errorf("Invalid expression")
 			}
@@ -52,17 +60,10 @@ func evaluateRPN(expression string) (int, error) {
 	}
 
 	result, _ := stack.Pop()
-	return result.(int), nil
+	return result.(float64), nil
 }
 
 func convertToPolishReverseForm(expression string) string {
-	precedence := map[string]int{
-		"+": 1,
-		"-": 1,
-		"*": 2,
-		"/": 2,
-	}
-
 	var result []string
 	var stack stack.Stack
 
