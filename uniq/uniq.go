@@ -10,31 +10,31 @@ import (
 )
 
 type UniqFlags struct {
-	count      bool
-	duplicates bool
-	unique     bool
-	ignoreCase bool
-	numFields  int
-	numChars   int
+	Count      bool
+	Duplicates bool
+	Unique     bool
+	IgnoreCase bool
+	NumFields  int
+	NumChars   int
 }
 
 func parseFlags() (UniqFlags, error) {
 	flags := UniqFlags{}
 
-	flag.BoolVar(&flags.count, "c", false, "Count the number of occurrences of each line")
-	flag.BoolVar(&flags.duplicates, "d", false, "Print only duplicate lines")
-	flag.BoolVar(&flags.unique, "u", false, "Print only unique lines")
-	flag.BoolVar(&flags.ignoreCase, "i", false, "Ignore case when comparing lines")
-	flag.IntVar(&flags.numFields, "f", 0, "Ignore the first num_fields fields in each line")
-	flag.IntVar(&flags.numChars, "s", 0, "Ignore the first num_chars characters in each line")
+	flag.BoolVar(&flags.Count, "c", false, "Count the number of occurrences of each line")
+	flag.BoolVar(&flags.Duplicates, "d", false, "Print only duplicate lines")
+	flag.BoolVar(&flags.Unique, "u", false, "Print only unique lines")
+	flag.BoolVar(&flags.IgnoreCase, "i", false, "Ignore case when comparing lines")
+	flag.IntVar(&flags.NumFields, "f", 0, "Ignore the first num_fields fields in each line")
+	flag.IntVar(&flags.NumChars, "s", 0, "Ignore the first num_chars characters in each line")
 
 	flag.Parse()
 
-	if flags.duplicates && flags.unique {
+	if flags.Duplicates && flags.Unique {
 		return flags, fmt.Errorf("")
 	}
 
-	if flags.numFields < 0 || flags.numChars < 0 {
+	if flags.NumFields < 0 || flags.NumChars < 0 {
 		return flags, fmt.Errorf("numeric values must be a non-negative integer")
 	}
 
@@ -114,20 +114,59 @@ func isRegIgnore(isIgnore bool, line string, prevLine string, numFields int, num
 
 func isSymCounter(isCounter bool, prevLine string, counter int, writer io.Writer) {
 	if isCounter {
-		writer.Write([]byte(fmt.Sprintf("%d %s\n", counter+1, prevLine)))
+		if prevLine != " " {
+			writer.Write([]byte(fmt.Sprintf("%d %s\n", counter+1, prevLine)))
+		} else {
+			writer.Write([]byte(fmt.Sprintf("%d\n", counter+1)))
+		}
 	} else if !isCounter && prevLine != "" {
 		writer.Write([]byte(fmt.Sprintf("%s\n", prevLine)))
 	}
 }
 
-func parseFile(inputFilename *string, outputFilename *string, flags *UniqFlags) error {
-	inputFile, err := createScanner(inputFilename)
+func Uniq(scanner io.Reader, writer io.Writer, flags *UniqFlags) error {
+	counter := 0
+	prevLine := ""
+	sc := bufio.NewScanner(scanner)
+	for sc.Scan() {
+		line := sc.Text()
+
+		if isRegIgnore(flags.IgnoreCase, line, prevLine, flags.NumFields, flags.NumChars) {
+			counter++
+		} else {
+			if (flags.Unique && counter == 0 || flags.Duplicates && counter > 0 || !flags.Duplicates && !flags.Unique) && prevLine != "" {
+				isSymCounter(flags.Count, prevLine, counter, writer)
+			}
+
+			counter = 0
+		}
+		prevLine = line
+	}
+
+	if (flags.Unique && counter == 0) || (flags.Duplicates && counter > 0) || (!flags.Duplicates && !flags.Unique) {
+		isSymCounter(flags.Count, prevLine, counter, writer)
+	}
+
+	return nil
+}
+
+func ParseFile() error {
+	flags, err := parseFlags()
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	inputFilename := flag.Arg(0)
+	outputFilename := flag.Arg(1)
+
+	inputFile, err := createScanner(&inputFilename)
 	if err != nil {
 		return err
 	}
 	defer inputFile.Close()
 
-	outputFile, err := createWriter(outputFilename)
+	outputFile, err := createWriter(&outputFilename)
 	if err != nil {
 		return err
 	}
@@ -136,46 +175,10 @@ func parseFile(inputFilename *string, outputFilename *string, flags *UniqFlags) 
 	var scanner io.Reader = inputFile
 	var writer io.Writer = outputFile
 
-	counter := 0
-	prevLine := ""
-	sc := bufio.NewScanner(scanner)
-	for sc.Scan() {
-		line := sc.Text()
-
-		if isRegIgnore(flags.ignoreCase, line, prevLine, flags.numFields, flags.numChars) {
-			counter++
-		} else {
-			if (flags.unique && counter == 0 || flags.duplicates && counter > 0 || !flags.duplicates && !flags.unique) && prevLine != "" {
-				isSymCounter(flags.count, prevLine, counter, writer)
-			}
-
-			counter = 0
-		}
-		prevLine = line
-	}
-
-	if (flags.unique && counter == 0) || (flags.duplicates && counter > 0) || (!flags.duplicates && !flags.unique) {
-		isSymCounter(flags.count, prevLine, counter, writer)
-	}
-
-	if w, ok := writer.(*bufio.Writer); ok {
-		w.Flush()
+	err = Uniq(scanner, writer, &flags)
+	if err != nil {
+		return err
 	}
 
 	return nil
-}
-
-func Uniq() {
-	flags, err := parseFlags()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	inputFilename := flag.Arg(0)
-	outputFilename := flag.Arg(1)
-	err = parseFile(&inputFilename, &outputFilename, &flags)
-	if err != nil {
-		fmt.Println("Error parsing file:", err)
-		return
-	}
 }
