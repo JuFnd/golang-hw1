@@ -33,7 +33,7 @@ func parseExpression() Expression {
 	return expression
 }
 
-func evaluateRPN(expression string) (float64, error) {
+func EvaluateRPN(expression string) (float64, error) {
 	stack := stack.NewStack()
 
 	tokens := strings.Split(expression, " ")
@@ -63,7 +63,7 @@ func evaluateRPN(expression string) (float64, error) {
 	return result.(float64), nil
 }
 
-func convertToPolishReverseForm(expression string) string {
+func ConvertToPolishReverseForm(expression string) string {
 	var result []string
 	var stack stack.Stack
 
@@ -110,7 +110,7 @@ func Calc() {
 		return
 	}
 
-	result, err := evaluateRPN(convertToPolishReverseForm(expression.value))
+	result, err := EvaluateRPN(ConvertToPolishReverseForm(expression.value))
 	if err != nil {
 		fmt.Println("Error:", err)
 		return
