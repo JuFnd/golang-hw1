@@ -41,8 +41,8 @@ func parseFlags() (UniqFlags, error) {
 	return flags, nil
 }
 
-func createScanner(inputFilename *string) (*os.File, error) {
-	if *inputFilename == "" {
+func createScanner(inputFilename string) (*os.File, error) {
+	if inputFilename == "" {
 		return os.Stdin, nil
 	} else {
 		file, err := openFile(inputFilename)
@@ -53,8 +53,8 @@ func createScanner(inputFilename *string) (*os.File, error) {
 	}
 }
 
-func createWriter(outputFilename *string) (*os.File, error) {
-	if *outputFilename == "" {
+func createWriter(outputFilename string) (*os.File, error) {
+	if outputFilename == "" {
 		return os.Stdout, nil
 	} else {
 		file, err := openFile(outputFilename)
@@ -65,8 +65,8 @@ func createWriter(outputFilename *string) (*os.File, error) {
 	}
 }
 
-func openFile(filename *string) (*os.File, error) {
-	file, err := os.Open(*filename)
+func openFile(filename string) (*os.File, error) {
+	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
@@ -160,13 +160,13 @@ func ParseFile() error {
 	inputFilename := flag.Arg(0)
 	outputFilename := flag.Arg(1)
 
-	inputFile, err := createScanner(&inputFilename)
+	inputFile, err := createScanner(inputFilename)
 	if err != nil {
 		return err
 	}
 	defer inputFile.Close()
 
-	outputFile, err := createWriter(&outputFilename)
+	outputFile, err := createWriter(outputFilename)
 	if err != nil {
 		return err
 	}
