@@ -1,11 +1,11 @@
 go 1.20
 
-use ./mods/stack
+use ./stack
 
-use ./mods/uniq
+use ./uniq
 
-use ./mods/calc
+use ./calc
 
-use ./mods/uniq_test
+use ./uniq_test
 
-use ./mods/calc_test
+use ./calc_test
